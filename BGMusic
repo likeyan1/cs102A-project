@@ -1,0 +1,54 @@
+package controller;
+
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import java.io.File;
+import java.util.ArrayList;
+
+public class BGMusic extends Thread{
+
+    ArrayList<File>  musicFiles = new ArrayList<>();
+    int index = 0;
+
+    public BGMusic() {
+        musicFiles.add(new File("waves/bgm0.wav"));
+        musicFiles.add(new File("waves/bgm1.wav"));
+        musicFiles.add(new File("waves/bgm2.wav"));
+        musicFiles.add(new File("waves/bgm3.wav"));
+    }
+
+    public void play(File file, boolean loop)
+    {
+        try
+        {
+            Clip clip = AudioSystem.getClip();
+            AudioInputStream audioInput = AudioSystem.getAudioInputStream(file);
+            clip.open(audioInput);
+            if (loop)
+                clip.loop(Clip.LOOP_CONTINUOUSLY);  //loop play
+            else
+                clip.start(); //only one
+
+        } catch(Exception ex){
+            ex.printStackTrace();
+        }
+    }
+
+    @Override
+    public void run() {
+        while(true) {
+            try {
+                play(musicFiles.get(index), false);
+                sleep(500);
+                index++;
+                if (index >= musicFiles.size())   {
+                    index = 0;
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+}
