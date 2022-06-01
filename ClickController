@@ -1,0 +1,214 @@
+package controller;
+
+import model.ChessColor;
+import model.KingChessComponent;
+import model.ChessComponent;
+import view.Chessboard;
+import view.ChessboardPoint;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+
+public class ClickController {
+    private final Chessboard chessboard;
+    private ChessComponent first;
+    private ChessColor attackedPlayer = ChessColor.NONE; /*  被将军的一方  */;
+    private ChessComponent king;
+    private ChessComponent attack;
+
+    public ClickController(Chessboard chessboard) {
+        this.chessboard = chessboard;
+    }
+    private void showTips(ChessComponent chess,boolean can)
+    {
+        List<ChessboardPoint> steps = chess.getCanMovePoints();
+        ChessComponent[][]  chesses = chessboard.getChessComponents();
+        for(ChessboardPoint p : steps)
+        {
+            int x = p.getX();
+            int y = p.getY();
+            ChessComponent c = chesses[x][y];
+            c.setCanSel(can);
+            c.repaint();
+
+        }
+    }
+
+    public void  PawnUpgrade(ChessComponent chess)
+    {
+        chessboard.PawnUpgrade(chess);
+    }
+
+
+    public boolean kingCanMove(ChessComponent chess) {
+        if (chess == null)
+            return true;
+
+        List<ChessboardPoint> attachPath = chessboard.getAttackPath();
+        List<ChessboardPoint> canMoveSteps = chess.getCanMovePoints();
+        int x = attack.getChessboardPoint().getX();
+        int y = attack.getChessboardPoint().getY();
+
+        int cnt = canMoveSteps.size();
+        for (ChessboardPoint p :  canMoveSteps) {
+            int x1 = p.getX();
+            int y1 = p.getY();
+            if( y== y1 && x ==x1){  //王能够吃掉攻击者
+                System.out.printf("King kill attacker, ye!\n");
+                return true;
+            }
+            for (ChessboardPoint q : attachPath) {
+                int x2 = q.getX();
+                int y2 = q.getY();
+                if (x1 == x2 && y1 == y2) {
+                    cnt--;
+                }
+            }
+        }
+
+        if (cnt == 0) {
+            chessboard.setGameOver(true);
+            return false;
+        } else {
+            System.out.printf("king Can Move:");
+            chessboard.ExitWar();
+            return true;
+        }
+    }
+
+    public boolean canBlockAttack()
+    {
+        return chessboard.canBlockAttack(attackedPlayer);
+    }
+    public boolean answserAttack(ChessComponent chess)  {
+        boolean block = false;
+        if (chessboard.getWarStatus() && attackedPlayer == chessboard.getCurrentColor())
+        {
+            /* 如果移动的棋子，其目标不在攻击线路上，提示错误. */
+            List<ChessboardPoint> attachPath = chessboard.getAttackPath();
+            int x = chess.getChessboardPoint().getX();
+            int y = chess.getChessboardPoint().getY();
+            for (ChessboardPoint p : attachPath)
+            {
+                if  (p.getX() == x  && p.getY() == y)
+                {
+                    block = true;
+                }
+            }
+            if (block) {//被将军时挡子
+                System.out.printf("Block attack OK.\n");
+            }
+            else
+                System.out.printf("now catch king, must block attack!!\n");
+
+            chessboard.ExitWar();
+            return block;
+        } else {
+            return true;
+        }
+    }
+    public void isCatchKing(ChessComponent chess)
+    {
+        //判断是否将军
+        List<ChessboardPoint> steps = chess.getCanMovePoints();
+        ChessComponent[][] chesses = chessboard.getChessComponents();
+        king = null;
+        attack = null;
+        for (ChessboardPoint p : steps) {
+            int x = p.getX();
+            int y = p.getY();
+            ChessComponent c = chesses[x][y];
+            if (c instanceof KingChessComponent) {
+                chessboard.EnterWar(); /* 将军 */
+                king = c;
+                attack = chess;
+                chessboard.addAttackPath(chess,c);
+                if (chessboard.getCurrentColor() == ChessColor.WHITE)
+                    attackedPlayer = ChessColor.BLACK;
+                else
+                    attackedPlayer = ChessColor.WHITE;
+            }
+        }
+        chessboard.printAttackPath();
+    }
+    public void onClick(ChessComponent chess) {
+        if (chessboard.isGameOver())
+            return;
+        if (first == null) {
+            if (handleFirst(chess)) {
+                chess.setSelected(true);
+                first = chess;
+                showTips(first,true);
+                first.repaint();
+            }
+        } else {
+            if (first == chess) { // 再次点击取消选取
+                showTips(first,false);
+                chess.setSelected(false);
+                ChessComponent recordFirst = first;
+                first = null;
+                recordFirst.repaint();
+
+            } else if (handleSecond(chess)) {
+                //repaint in swap chess method.
+
+                showTips(first,false);
+
+                chessboard.saveLastStep(first, chess);
+                chessboard.swapChessComponents(first, chess);
+
+                if(chess instanceof KingChessComponent){
+                    if  (chessboard.getCurrentColor() == ChessColor.WHITE)
+                        chessboard.gameOver("WHITE");
+                    else
+                        chessboard.gameOver("BLACK");
+                }
+
+                isCatchKing(first);
+
+                if  (!canBlockAttack() && !kingCanMove(king))
+                {
+                    if  (chessboard.getCurrentColor() == ChessColor.WHITE)
+                        chessboard.gameOver("WHITE");
+                    else
+                        chessboard.gameOver("BLACK");
+                } else
+                {
+                    answserAttack(first);
+                }
+
+                PawnUpgrade(first);
+
+                chessboard.swapColor();
+                chessboard.roundInc();
+                chessboard.showRound();
+
+                first.setSelected(false);
+                first = null;
+                File clickFile = new File("waves/click.wav");
+                BGMusic player = new BGMusic();
+                player.play(clickFile, false);
+            }
+        }
+    }
+
+    /**
+     * @param chessComponent 目标选取的棋子
+     * @return 目标选取的棋子是否与棋盘记录的当前行棋方颜色相同
+     */
+
+    private boolean handleFirst(ChessComponent chessComponent) {
+        return chessComponent.getChessColor() == chessboard.getCurrentColor();
+    }
+
+    /**
+     * @param chessComponent first棋子目标移动到的棋子second
+     * @return first棋子是否能够移动到second棋子位置
+     */
+
+    private boolean handleSecond(ChessComponent chessComponent) {
+        return chessComponent.getChessColor() != chessboard.getCurrentColor() &&
+                first.canMoveTo(chessboard.getChessComponents(), chessComponent.getChessboardPoint());
+    }
+}
